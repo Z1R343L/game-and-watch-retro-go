@@ -51,11 +51,11 @@ sha1 = hashlib.sha1()
 
 with open(sys.argv[2], 'rb') as f:
     while True:
-        data = f.read(BUF_SIZE)
-        if not data:
-            break
-        sha1.update(data)
+        if data := f.read(BUF_SIZE):
+            sha1.update(data)
 
+        else:
+            break
 sha1string = sha1.hexdigest()
 
 DOMTree = xml.dom.minidom.parse(sys.argv[1])

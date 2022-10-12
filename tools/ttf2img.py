@@ -8,7 +8,7 @@ import sys
 
 
 def Paint_Fontogn(font_name, priname, font_size:int, out_size:int, xoffset:int, yoffset:int):
-    print("Process:" + font_name)
+    print(f"Process:{font_name}")
     h_s = out_size // 2
     s_w = out_size * 4
     s_h = out_size * 4
@@ -17,7 +17,7 @@ def Paint_Fontogn(font_name, priname, font_size:int, out_size:int, xoffset:int, 
     img = Image.new('RGB', (s_w * 16, s_h * 16) , 0)
     img1 = Image.new('RGB', (s_w * 16, s_h * 16) , 0)
     tipfnt = ImageFont.truetype("cour.ttf", out_size)
-    outfnt = ImageFont.truetype("fonts/" + font_name, font_size)
+    outfnt = ImageFont.truetype(f"fonts/{font_name}", font_size)
     draw = ImageDraw.Draw(img)
     draw1 = ImageDraw.Draw(img1)
     for x in range(16):
@@ -42,7 +42,7 @@ def Paint_Fontogn(font_name, priname, font_size:int, out_size:int, xoffset:int, 
                 draw.text((x * s_w + h_s + out_size * 2 + xoffset, y * s_h + out_size * 2 + h_s + yoffset), chr(y*16+x), font=outfnt, fill=(255,255,255))
                 draw1.text((x * s_w + h_s, y * s_h + out_size * 2 + h_s), chr(y*16+x), font=tipfnt, fill=(120,120,120))
                 draw1.text((x * s_w + h_s + out_size * 2 + xoffset, y * s_h + out_size * 2 + h_s + yoffset), chr(y*16+x), font=outfnt, fill=(255,255,255))
-    bmp_file = "fontview" + "/" + priname + str((Path(font_name)).stem + ".bmp")
+    bmp_file = "fontview" + "/" + priname + str(f"{Path(font_name).stem}.bmp")
     img.save(bmp_file, "BMP")
     #bmp_file = "fontimgs" + "/" + priname + str((Path(font_name)).stem + ".bmp")
     #img1.save(bmp_file, "BMP")

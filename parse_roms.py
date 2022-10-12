@@ -127,7 +127,7 @@ class CompressionRegistry(dict):
         assert name.startswith(self.prefix)
         key = name[len(self.prefix) :]
         self[key] = f
-        self["." + key] = f
+        self[f".{key}"] = f
         return f
 
 
@@ -137,26 +137,9 @@ COMPRESSIONS = CompressionRegistry()
 @COMPRESSIONS
 def compress_lz4(data, level=None):
     if level == DONT_COMPRESS:
-        frame = []
-
-        # Write header
-        # write MAGIC WORD
-        magic = b"\x04\x22\x4D\x18"
-        frame.append(magic)
-
-        # write FLG, BD, HC
-        flg = b"\x68"  # independent blocks, no checksum, content-size enabled
-        # the uncompressed size of data included within the frame will be present
-        # as an 8 bytes unsigned little endian value, after the flags
-        frame.append(flg)
-
-        bd = b"\x40"
-        frame.append(bd)
-
         # write uncompressed frame size
         content_size = len(data).to_bytes(8, "little")
-        frame.append(content_size)
-
+        frame = [b"\x04\x22\x4D\x18", b"\x68", b"\x40", content_size]
         if len(data) == 16384:
             # Hardcode in the checksum for this length to reduce dependencies
             hc = b"\x25"
@@ -170,15 +153,7 @@ def compress_lz4(data, level=None):
         # Block size in bytes with the highest bit set to 1 to mark the
         # data as uncompressed.
         block_size = (len(data) + 2 ** 31).to_bytes(4, "little")
-        frame.append(block_size)
-
-        frame.append(data)
-
-        # Write footer
-        # write END_MARK 0x0000
-        footer = b"\x00\x00\x00\x00"
-        frame.append(footer)
-
+        frame.extend((block_size, data, b"\x00\x00\x00\x00"))
         return b"".join(frame)
 
     if level is None:
@@ -208,12 +183,13 @@ def compress_lz4(data, level=None):
         file_in.write_bytes(data)
         cmd = [
             lz4_path,
-            "-" + str(level),
+            f"-{str(level)}",
             "--content-size",
             "--no-frame-crc",
             file_in,
             file_out,
         ]
+
         subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
         compressed_data = file_out.read_bytes()
     return compressed_data
@@ -223,18 +199,9 @@ def compress_lz4(data, level=None):
 def compress_zopfli(data, level=None):
     if level == DONT_COMPRESS:
         assert 0 <= len(data) <= 65535
-        frame = []
-
-        frame.append(b"\x01")  # Not compressed block
-
         data_len = len(data).to_bytes(2, "little")
-        frame.append(data_len)
-
         data_nlen = (len(data) ^ 0xFFFF).to_bytes(2, "little")
-        frame.append(data_nlen)
-
-        frame.append(data)
-
+        frame = [b"\x01", data_len, *(data_nlen, data)]
         return b"".join(frame)
 
     # Actual zopfli compression is temporarily disabled until a GB/GBC bank
@@ -248,8 +215,7 @@ def compress_zopfli(data, level=None):
 
     c = zlib.compressobj(level=9, method=zlib.DEFLATED, wbits=-15, memLevel=9)
 
-    compressed_data = c.compress(data) + c.flush()
-    return compressed_data
+    return c.compress(data) + c.flush()
 
 
 @COMPRESSIONS
@@ -279,17 +245,16 @@ def compress_lzma(data, level=None):
 
 def sha1_for_file(filename):
     sha1 = hashlib.sha1()
-    if os.path.exists(filename):
-        with open(filename, 'rb') as f:
-            while True:
-                data = f.read(16*1024)
-                if not data:
-                    break
+    if not os.path.exists(filename):
+        return ""
+    with open(filename, 'rb') as f:
+        while True:
+            if data := f.read(16 * 1024):
                 sha1.update(data)
 
-        return sha1.hexdigest()
-    else:
-        return ""
+            else:
+                break
+    return sha1.hexdigest()
 
 
 def parse_msx_bios_files():
@@ -359,25 +324,18 @@ def is_valid_game_genie_code(code):
         subcodes = code.split('+')
         if len(subcodes) > 3:
             return False
-        for subcode in subcodes:
-            if not is_valid_game_genie_code(subcode):
-                return False
-        return True
-
+        return all(is_valid_game_genie_code(subcode) for subcode in subcodes)
     valid_characters = "APZLGITYEOXUKSVN"
-    if all(c in valid_characters for c in code) == False:
+    if any(c not in valid_characters for c in code):
         return False
-    if len(code) != 6 and len(code) != 8:
-        return False
-
-    return True
+    return len(code) in {6, 8}
 
 
 class ROM:
     def __init__(self, system_name: str, filepath: str, extension: str, romdefs: dict):
         filepath = Path(filepath)
 
-        self.rom_id = 0 
+        self.rom_id = 0
         self.path = filepath
         self.filename = filepath
         # Remove compression extension from the name in case it ends with that
@@ -393,22 +351,26 @@ class ROM:
         self.publish = (self.romdef['publish'] == '1')
         self.enable_save = (self.romdef['enable_save'] == '1') or args.save
         self.name = self.romdef['name']
-        print("Found rom " + self.filename +" will display name as: " + self.romdef['name'])
+        print(
+            f"Found rom {self.filename} will display name as: "
+            + self.romdef['name']
+        )
+
         if not (self.publish):
             print("& will not Publish !")
         obj_name = "".join([i if i.isalnum() else "_" for i in self.path.name])
-        self.obj_path = "build/roms/" + obj_name + ".o"
-        symbol_path = str(self.path.parent) + "/" + obj_name
+        self.obj_path = f"build/roms/{obj_name}.o"
+        symbol_path = f"{str(self.path.parent)}/{obj_name}"
         self.symbol = (
             "_binary_"
             + "".join([i if i.isalnum() else "_" for i in symbol_path])
             + "_start"
         )
 
-        self.img_path = self.path.parent / (self.filename + ".img")
+        self.img_path = self.path.parent / f"{self.filename}.img"
         obj_name = "".join([i if i.isalnum() else "_" for i in self.img_path.name])
-        symbol_path = str(self.path.parent) + "/" + obj_name
-        self.obj_img = "build/roms/" + obj_name + "_" + extension + ".o"
+        symbol_path = f"{str(self.path.parent)}/{obj_name}"
+        self.obj_img = f"build/roms/{obj_name}_{extension}.o"
         self.img_symbol = (
             "_binary_"
             + "".join([i if i.isalnum() else "_" for i in symbol_path])
@@ -426,7 +388,7 @@ class ROM:
 
     def get_rom_patchs(self):
         #get pce rompatchs files
-        pceplus = Path(self.path.parent, self.filename + ".pceplus")
+        pceplus = Path(self.path.parent, f"{self.filename}.pceplus")
 
         if not os.path.exists(pceplus):
             return []
@@ -444,11 +406,11 @@ class ROM:
             for i in range(len(parts) - 1):
                 part = parts[i].strip()
                 #get cmd byte count
-                x_str = part[0:2]
+                x_str = part[:2]
                 x = (int(x_str, 16) >> 4) + 1
                 one_cmd = ""
                 for y in range(3):
-                    one_cmd = one_cmd + "\\x" + part[y * 2: y * 2 + 2] 
+                    one_cmd = one_cmd + "\\x" + part[y * 2: y * 2 + 2]
                 for y in range(x):
                     one_cmd = one_cmd + "\\x" + part[y * 2 + 6: y * 2 + 8]
                 #got one cmd
@@ -474,7 +436,7 @@ class ROM:
 
     def get_game_genie_codes(self):
         # Get game genie code file path
-        gg_path = Path(self.path.parent, self.filename + ".ggcodes")
+        gg_path = Path(self.path.parent, f"{self.filename}.ggcodes")
 
         if not os.path.exists(gg_path):
             return self.get_rom_patchs()
@@ -493,7 +455,7 @@ class ROM:
             # Remove whitespace
             code = "".join(code.split())
             # Remove empty lines
-            if code == "":
+            if not code:
                 continue
             # Capitalize letters
             code = code.upper()
@@ -548,7 +510,7 @@ class ROMParser:
         extension = extension.lower()
         ext = extension
         if not extension.startswith("."):
-            extension = "." + extension
+            extension = f".{extension}"
 
         script_path = Path(__file__).parent
         roms_folder = script_path / "roms" / folder
@@ -558,8 +520,8 @@ class ROMParser:
         rom_files = [r for r in rom_files if r.name.lower().endswith(extension)]
         rom_files.sort()
         found_roms = [ROM(system_name, rom_file, ext, romdefs) for rom_file in rom_files]
+        suffix = "_no_save"
         for rom in found_roms:
-            suffix = "_no_save"
             if rom.name.endswith(suffix) :
                 rom.name = rom.name[:-len(suffix)]
                 rom.enable_save = False
@@ -589,9 +551,9 @@ class ROMParser:
                 ]
             )
             region = "REGION_PAL" if is_pal else "REGION_NTSC"
-            gg_count_name = "%s%s_COUNT" % (game_genie_codes_prefix, i)
-            gg_code_array_name = "%sCODE_%s" % (game_genie_codes_prefix, i)
-            gg_desc_array_name = "%sDESC_%s" % (game_genie_codes_prefix, i)
+            gg_count_name = f"{game_genie_codes_prefix}{i}_COUNT"
+            gg_code_array_name = f"{game_genie_codes_prefix}CODE_{i}"
+            gg_desc_array_name = f"{game_genie_codes_prefix}DESC_{i}"
             body += ROM_ENTRY_TEMPLATE.format(
                 rom_id=rom.rom_id,
                 name=str(rom.name),
@@ -600,26 +562,30 @@ class ROMParser:
                 img_size=rom.img_size,
                 img_entry=rom.img_symbol if rom.img_size else "NULL",
                 save_entry=(save_prefix + str(i)) if rom.enable_save else "NULL",
-                save_size=("sizeof(" + save_prefix + str(i) + ")") if rom.enable_save else "0",
+                save_size=f"sizeof({save_prefix}{str(i)})"
+                if rom.enable_save
+                else "0",
                 region=region,
                 extension=rom.ext,
                 system=system,
-                game_genie_codes=gg_code_array_name if game_genie_codes_prefix else "NULL",
-                game_genie_descs=gg_desc_array_name if game_genie_codes_prefix else 0,
+                game_genie_codes=gg_code_array_name
+                if game_genie_codes_prefix
+                else "NULL",
+                game_genie_descs=gg_desc_array_name
+                if game_genie_codes_prefix
+                else 0,
                 game_genie_count=gg_count_name if game_genie_codes_prefix else 0,
                 mapper=rom.mapper,
-                controls=rom.controls
+                controls=rom.controls,
             )
+
             body += "\n"
             pubcount += 1
 
         return ROM_ENTRIES_TEMPLATE.format(name=name, body=body, rom_count=pubcount)
 
     def generate_object_file(self, rom: ROM,system_name) -> str:
-        # convert rom to an .o file and place the data in the .extflash_game_rom section
-        prefix = ""
-        if "GCC_PATH" in os.environ:
-            prefix = os.environ["GCC_PATH"]
+        prefix = os.environ["GCC_PATH"] if "GCC_PATH" in os.environ else ""
         prefix = Path(prefix)
         if system_name == "Sega Genesis":
             subprocess.check_output(
@@ -666,15 +632,10 @@ class ROMParser:
         return template.format(name=rom.symbol)
 
     def generate_img_object_file(self, rom: ROM, w, h) -> str:
-        # convert rom_img to an .o file and place the data in the .extflash_game_rom section
-        prefix = ""
-        if "GCC_PATH" in os.environ:
-            prefix = os.environ["GCC_PATH"]
-
+        prefix = os.environ["GCC_PATH"] if "GCC_PATH" in os.environ else ""
         prefix = Path(prefix)
 
-        imgs = []
-        imgs.append(str(rom.img_path.with_suffix(".png")))
+        imgs = [str(rom.img_path.with_suffix(".png"))]
         imgs.append(str(rom.img_path.with_suffix(".PNG")))
         imgs.append(str(rom.img_path.with_suffix(".Png")))
         imgs.append(str(rom.img_path.with_suffix(".jpg")))
@@ -729,12 +690,16 @@ class ROMParser:
         str = "";
 
         codes = "{%s}" % ",".join(f'"{c}"' for (c,d) in game_genie_codes_and_descs)
-        descs = "{%s}" % ",".join(f'NULL' if d is None else f'"{d}"' for (c,d) in game_genie_codes_and_descs)
+        descs = "{%s}" % ",".join(
+            'NULL' if d is None else f'"{d}"'
+            for (c, d) in game_genie_codes_and_descs
+        )
+
         number_of_codes = len(game_genie_codes_and_descs)
 
-        count_name = "%s%s_COUNT" % (name, num)
-        code_array_name = "%sCODE_%s" % (name, num)
-        desc_array_name = "%sDESC_%s" % (name, num)
+        count_name = f"{name}{num}_COUNT"
+        code_array_name = f"{name}CODE_{num}"
+        desc_array_name = f"{name}DESC_{num}"
         str += f'#if GAME_GENIE == 1\n'
         str += f'const char* {code_array_name}[{number_of_codes}] = {codes};\n'
         str += f'const char* {desc_array_name}[{number_of_codes}] = {descs};\n'
@@ -789,7 +754,7 @@ class ROMParser:
             raise ValueError(f'Unknown compression method: "{compress}"')
 
         if compress[0] != ".":
-            compress = "." + compress
+            compress = f".{compress}"
         output_file = Path(str(rom.path) + compress)
         compress = COMPRESSIONS[compress]
         data = rom.read()
@@ -842,17 +807,14 @@ class ROMParser:
             compressed_banks = [compress(bank) for bank in banks]
 
             # add header + number of banks + banks(offset)
-            output_data=[]
-            output_data.append( b'SMS+')
-            output_data.append(pack("<l", len(compressed_banks)))
-
-            for compressed_bank in compressed_banks:
-                output_data.append(pack("<l", len(compressed_bank)))
+            output_data = [b'SMS+', pack("<l", len(compressed_banks))]
+            output_data.extend(
+                pack("<l", len(compressed_bank))
+                for compressed_bank in compressed_banks
+            )
 
             # Reassemble all banks back into one file
-            for compressed_bank in compressed_banks:
-                output_data.append(compressed_bank)
-
+            output_data.extend(iter(compressed_banks))
             output_data = b"".join(output_data)
 
             output_file.write_bytes(output_data)
@@ -886,7 +848,7 @@ class ROMParser:
                 if compression_credit > len(ordered_size):
                     compression_credit = len(ordered_size) - 1
 
-                compress_threshold = ordered_size[int(compression_credit)]
+                compress_threshold = ordered_size[compression_credit]
 
                 for i, bank in enumerate(compressed_banks):
                     if len(bank) >= compress_threshold:
@@ -933,7 +895,7 @@ class ROMParser:
     ) -> int:
         import json;
         script_path = Path(__file__).parent
-        json_file = script_path / "roms" / str(folder + ".json")
+        json_file = script_path / "roms" / str(f"{folder}.json")
         print(json_file)
         if Path(json_file).exists():
             with open(json_file,'r') as load_f:
@@ -943,7 +905,7 @@ class ROMParser:
                     romdefs = romdef
                 except: 
                     load_f.close()
- 
+
         roms_raw = []
         for e in extensions:
             roms_raw += self.find_roms(system_name, folder, e, romdefs)
@@ -956,7 +918,7 @@ class ROMParser:
 
             roms = []
             for e in extensions:
-                roms += self.find_roms(system_name, folder, e + "." + compress, romdefs)
+                roms += self.find_roms(system_name, folder, f"{e}.{compress}", romdefs)
             return roms
 
         def find_disks():
@@ -1051,8 +1013,8 @@ class ROMParser:
         romdefs.setdefault("_cover_height", 96)
         cover_width = romdefs["_cover_width"]
         cover_height = romdefs["_cover_height"]
-        cover_width = 180 if cover_width > 180 else 64 if cover_width < 64 else cover_width
-        cover_height = 136 if cover_height > 136 else 64 if cover_height < 64 else cover_height
+        cover_width = 180 if cover_width > 180 else max(cover_width, 64)
+        cover_height = 136 if cover_height > 136 else max(cover_height, 64)
 
         img_max = cover_width * cover_height
 
@@ -1094,15 +1056,20 @@ class ROMParser:
                     f.write(self.generate_game_genie_entry(game_genie_codes_prefix, i, game_genie_codes_and_descs))
 
             rom_entries = self.generate_rom_entries(
-                folder + "_roms", roms, save_prefix, variable_name, game_genie_codes_prefix
+                f"{folder}_roms",
+                roms,
+                save_prefix,
+                variable_name,
+                game_genie_codes_prefix,
             )
+
             f.write(rom_entries)
 
             f.write(
                 SYSTEM_TEMPLATE.format(
                     name=variable_name,
                     system_name=system_name,
-                    variable_name=folder + "_roms",
+                    variable_name=f"{folder}_roms",
                     extension=folder,
                     cover_width=cover_width,
                     cover_height=cover_height,
@@ -1110,17 +1077,19 @@ class ROMParser:
                 )
             )
 
+
         larger_rom_size = 0
         for r in roms_uncompressed:
-            if r.ext in ["gg","sms","md","gen","bin"]:
-                if larger_rom_size < r.size: larger_rom_size = r.size
+            if (
+                r.ext in ["gg", "sms", "md", "gen", "bin"]
+                and larger_rom_size < r.size
+            ):
+                larger_rom_size = r.size
         return system_save_size, total_save_size, total_rom_size, total_img_size, current_id, larger_rom_size
 
     def write_if_changed(self, path: str, data: str):
         path = Path(path)
-        old_data = None
-        if path.exists():
-            old_data = path.read_text()
+        old_data = path.read_text() if path.exists() else None
         if data != old_data:
             path.write_text(data)
 

@@ -5,8 +5,7 @@ def parse_args():
     """Parse bmp file to bin txt"""
     parser = argparse.ArgumentParser()
     parser.add_argument("bmp", type=Path)
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 def write_rgb565(fi, fn):
     from PIL import Image, ImageOps
@@ -28,7 +27,7 @@ def write_rgb565(fi, fn):
 def main():
     args = parse_args()
     #filepath.stem
-    write_rgb565(args.bmp, args.bmp.stem + ".txt")
+    write_rgb565(args.bmp, f"{args.bmp.stem}.txt")
 
 
 if __name__ == "__main__":

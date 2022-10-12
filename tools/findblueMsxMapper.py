@@ -222,7 +222,6 @@ def getMapperValue(name):
     if (name == "forteII"):      return ROM_FORTEII
     if (name == "msxdos2"):      return ROM_MSXDOS2
     if (name == "konami5"):      return ROM_KONAMI5
-    if (name == "MuPack"):       return ROM_MUPACK
     if (name == "konami4"):      return ROM_KONAMI4
     if (name == "ascii8"):       return ROM_ASCII8
     if (name == "halnote"):      return ROM_HALNOTE
@@ -254,13 +253,12 @@ def getMapperValue(name):
     if (name == "korean80"):     return ROM_KOREAN80
     if (name == "korean90"):     return ROM_KOREAN90
     if (name == "korean126"):    return ROM_KOREAN126
-    if (name == "holyquran"):    return ROM_HOLYQURAN  
+    if (name == "holyquran"):    return ROM_HOLYQURAN
     if (name == "opcodesave"):   return ROM_OPCODESAVE
     if (name == "opcodebios"):   return ROM_OPCODEBIOS
     if (name == "opcodeslot"):   return ROM_OPCODESLOT
     if (name == "opcodeega"):    return ROM_OPCODEMEGA
-    if (name == "coleco"):       return ROM_COLECO
-    return ROM_UNKNOWN
+    return ROM_COLECO if (name == "coleco") else ROM_UNKNOWN
 
 def getRomMapper(collection,sha1):
     for software in collection.getElementsByTagName("software"):
@@ -272,15 +270,16 @@ def getRomMapper(collection,sha1):
                 if (hash == sha1string):
                     if (rom.getElementsByTagName('type')):
                         mapper = getMapperValue(rom.getElementsByTagName('type')[0].childNodes[0].data)
-                        if (mapper == ROM_STANDARD):
-                            if rom.getElementsByTagName('start') :
-                                start = rom.getElementsByTagName('start')[0].childNodes[0].data
-                                if (start == "0x4000"):
-                                    mapper = ROM_0x4000
-                                elif (start == "0x8000"):
-                                    mapper = ROM_BASIC
-                                elif (start == "0xC000"):
-                                    mapper = ROM_0xC000
+                        if (
+                            mapper == ROM_STANDARD
+                        ) and rom.getElementsByTagName('start'):
+                            start = rom.getElementsByTagName('start')[0].childNodes[0].data
+                            if (start == "0x4000"):
+                                mapper = ROM_0x4000
+                            elif (start == "0x8000"):
+                                mapper = ROM_BASIC
+                            elif (start == "0xC000"):
+                                mapper = ROM_0xC000
                     return mapper
             for megarom in dump.getElementsByTagName('megarom'):
                 hash = megarom.getElementsByTagName('hash')[0].childNodes[0].data
@@ -303,11 +302,11 @@ sha1 = hashlib.sha1()
 
 with open(sys.argv[2], 'rb') as f:
     while True:
-        data = f.read(BUF_SIZE)
-        if not data:
-            break
-        sha1.update(data)
+        if data := f.read(BUF_SIZE):
+            sha1.update(data)
 
+        else:
+            break
 sha1string = sha1.hexdigest()
 #print("Rom SHA1: %s" % sha1string)
 

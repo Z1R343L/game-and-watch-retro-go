@@ -18,7 +18,7 @@ def get_screenshot(args):
     with open(args.elf, "rb") as f:
         elffile = ELFFile(f)
         fb_address = get_symbol_by_symbol_name(elffile, "framebuffer_capture").entry.st_value
-    
+
     buffer_size = 320 * 240 * 2
 
     with OpenOCD(host=args.host, port=args.port) as ocd:
@@ -31,8 +31,8 @@ def get_screenshot(args):
     img = Image.new("RGB", (args.width, args.height))
     pixels = img.load()
     index = 0
-    for y in range(0, args.height):
-        for x in range(0, args.width):
+    for y in range(args.height):
+        for x in range(args.width):
             color, = struct.unpack('<H', data[index:index+2])
             red =   int(((color & 0b1111100000000000) >> 11) / 31.0 * 255.0)
             green = int(((color & 0b0000011111100000) >>  5) / 63.0 * 255.0)

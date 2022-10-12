@@ -12,7 +12,7 @@ class ROMParser:
         extension = extension.lower()
         ext = extension
         if not extension.startswith("."):
-            extension = "." + extension
+            extension = f".{extension}"
 
         script_path = Path(__file__).parent
         roms_folder = script_path / "roms" / folder
@@ -26,14 +26,20 @@ class ROMParser:
         rom_files = list(roms_folder.iterdir())
         rom_files = [r for r in rom_files if r.name.lower().endswith(extension)]
         rom_files.sort()
-        for rom_file in rom_files :
+        for rom_file in rom_files:
             file_name = rom_file.stem
             romdefs.setdefault(file_name, {})
             romdef = romdefs[file_name]
             romdef.setdefault("name", file_name)
             romdef.setdefault("publish", "1")
             romdef.setdefault("enable_save", "0")
-            print(folder + ":" + file_name + " >> " + romdef["name"] + ",P: " + romdef["publish"])
+            print(
+                f"{folder}:{file_name} >> "
+                + romdef["name"]
+                + ",P: "
+                + romdef["publish"]
+            )
+
 
         return romdefs
 

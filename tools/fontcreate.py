@@ -34,16 +34,16 @@ def write_fontpixels(fn, height):
             for i in range(height):
                 m = int(("{:0>8b}".format(chars[charCode].data[i * 2]))[::-1], 2)
                 m1 = int(("{:0>8b}".format(chars[charCode].data[i * 2 + 1]))[::-1], 2)
-                m = m + (m1 << 8)
+                m += m1 << 8
                 #print("{:0>8b}".format(chars[charCode].data[i * 2]))
                 #print("{:0>8b}".format(chars[charCode].data[i * 2 + 1]))
                 #print("{:0>16b}".format(m))
                 #m = chars[charCode].data[i * 2] + (chars[charCode].data[i * 2 + 1] << 8)
-                m = m >> chars[charCode].xoffset
+                m >>= chars[charCode].xoffset
                 chars[charCode].mdata[i] = m
-            #print(chars[charCode].data)
-            #print(chars[charCode].mdata)
-        
+                    #print(chars[charCode].data)
+                    #print(chars[charCode].mdata)
+
         start_pos = 0;
         for i in range(256):
             chars[i].postion = start_pos
@@ -87,7 +87,7 @@ def main():
     if (len(sys.argv) > 1):
         write_fontpixels(sys.argv[1], 12)
     else:
-        write_fontpixels(sys.argv[0] + ".txt", 12)
+        write_fontpixels(f"{sys.argv[0]}.txt", 12)
 
 if __name__ == "__main__":
     main()

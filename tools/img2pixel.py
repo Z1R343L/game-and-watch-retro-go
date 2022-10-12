@@ -5,22 +5,22 @@ def parse_args():
     """Parse bmp file to bin txt"""
     parser = argparse.ArgumentParser()
     parser.add_argument("bmp", type=Path)
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 def write_pixels(fi, fn):
     from PIL import Image, ImageOps
     img = Image.open(fi).convert(mode="RGB")
     pixels = list(img.getdata())
     with open(fn, "wb") as f:
-        # TODO: this header could probably be a bit shorter, didn't really investigate
-        #create a array;
-        binData = [];
         #print("// width" + str(img.width) + ", height:" + str(img.height));
-        f.write(str.encode("// width" + str(img.width) + ", height:" + str(img.height) + "\n", "utf-8"))
-        for x in range((img.width+7) // 8):
-            binData.append(0);
+        f.write(
+            str.encode(
+                f"// width{str(img.width)}, height:{str(img.height)}" + "\n",
+                "utf-8",
+            )
+        )
 
+        binData = [0 for _ in range((img.width+7) // 8)]
         for y in range(img.height):
         #for pix in pixels:
             s_pix = ""
@@ -35,10 +35,10 @@ def write_pixels(fi, fn):
                 if (b_p > 100):
                     b_b = b_b | (1 << b_i)
                     binData[(x+8) // 8 -1] = b_b
-                    s_pix = s_pix + "#"
+                    s_pix = f"{s_pix}#"
                 else:
-                    s_pix = s_pix + "_"
-                #f.write(str.encode(f"0x{px:04X},", "utf-8"))
+                    s_pix = f"{s_pix}_"
+                            #f.write(str.encode(f"0x{px:04X},", "utf-8"))
             for x in range((img.width+7) // 8):
                #binData[x] = 0;
                f.write(str.encode(f"0x{binData[x]:02x}, ", "utf-8"))
@@ -47,7 +47,7 @@ def write_pixels(fi, fn):
 def main():
     args = parse_args()
     #filepath.stem
-    write_pixels(args.bmp, args.bmp.stem + ".txt")
+    write_pixels(args.bmp, f"{args.bmp.stem}.txt")
 
 if __name__ == "__main__":
     main()

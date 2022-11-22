@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # Sample rate = PLL2P / 2048
 
     hsi = 64000000
-    for fracn2 in range(0, 8191):
+    for fracn2 in range(8191):
         for divm2 in range(1, 64):
             for divn2 in range(8, 421):
                 for divp2 in range(1, 129):

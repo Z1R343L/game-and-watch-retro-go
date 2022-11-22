@@ -4,7 +4,7 @@ import sys
 
 def compress_lzma(data, level=None):
     import lzma
-    if level == None or level != 'lzma':
+    if level is None or level != 'lzma':
         return data
 
     compressed_data = lzma.compress(
@@ -56,7 +56,7 @@ def createLZMA(Sides,Tracks,Sectors,SecSize,diskBytesArray,compress=None):
         trackAddress+=len(trackData)
         track+=1
 
-    return lzmaDiskArray[0:lzmaDataWriteOffset]
+    return lzmaDiskArray[:lzmaDataWriteOffset]
 
 def createIdeLZMA(Sides,Tracks,Sectors,SecSize,diskBytesArray,compress=None):
     # Allocate memory */
@@ -91,7 +91,7 @@ def createIdeLZMA(Sides,Tracks,Sectors,SecSize,diskBytesArray,compress=None):
         sectorAddress+=len(sectorData)
         sector+=1
 
-    return lzmaDiskArray[0:lzmaDataWriteOffset]
+    return lzmaDiskArray[:lzmaDataWriteOffset]
 
 def analyzeRawDsk(dskFile,fileName):
     dskFile.seek(0, os.SEEK_END)
@@ -99,62 +99,51 @@ def analyzeRawDsk(dskFile,fileName):
     dskFile.seek(0, os.SEEK_SET)
 
     if size <= 80*9*512:
-        diskArray = createLZMA(1,80,9,512,dskFile.read(),compress)
+        return createLZMA(1,80,9,512,dskFile.read(),compress)
     elif size <= 2*80*9*512:
-        diskArray = createLZMA(2,80,9,512,dskFile.read(),compress)
+        return createLZMA(2,80,9,512,dskFile.read(),compress)
     else:
-        diskArray = bytearray(0)
-
-    return diskArray
+        return bytearray(0)
 
 def analyzeIdeDsk(dskFile,fileName):
     dskFile.seek(0, os.SEEK_END)
     size = dskFile.tell()
     dskFile.seek(0, os.SEEK_SET)
 
-    diskArray = createIdeLZMA(1,1,int(size/512),512,dskFile.read(),compress)
-    return diskArray
+    return createIdeLZMA(1,1,int(size/512),512,dskFile.read(),compress)
 
 n = len(sys.argv)
 
 if n < 2: print("Usage :\ndsk2lzma.py file.dsk [compress]\n"); sys.exit(0)
-if n == 2:
-    compress=None
-else:
-    compress=sys.argv[2]
-
+compress = None if n == 2 else sys.argv[2]
 # Check file size
-if (os.path.getsize(sys.argv[1]) > 2*1024*1024) :
-    ideFile = open(sys.argv[1], 'rb')
-    lzmaArray = analyzeIdeDsk(ideFile,sys.argv[1])
-    print("IDE HDD image")
-    if len(lzmaArray) > 0 :
-        outFile = sys.argv[1]+".cdk"
-        print("File converted, saving "+outFile)
-        newfile=open(outFile,'wb')
-        newfile.write(lzmaArray)
-        newfile.close()
-        ideFile.close()
-        print("Done")
-        sys.exit(0)
-    ideFile.close()
+if (os.path.getsize(sys.argv[1]) > 2*1024*1024):
+    with open(sys.argv[1], 'rb') as ideFile:
+        lzmaArray = analyzeIdeDsk(ideFile,sys.argv[1])
+        print("IDE HDD image")
+        if len(lzmaArray) > 0:
+            outFile = f"{sys.argv[1]}.cdk"
+            print(f"File converted, saving {outFile}")
+            with open(outFile,'wb') as newfile:
+                newfile.write(lzmaArray)
+            ideFile.close()
+            print("Done")
+            sys.exit(0)
     sys.exit(-1)
 
 # Open file and find its size
-print("Opening "+sys.argv[1])
-dskFile = open(sys.argv[1], 'rb')
-lzmaArray = analyzeRawDsk(dskFile,sys.argv[1])
-if len(lzmaArray) > 0 :
-    outFile = sys.argv[1]+".cdk"
-    print("File converted, saving "+outFile)
-    newfile=open(outFile,'wb')
-    newfile.write(lzmaArray)
-    newfile.close()
-    dskFile.close()
-    print("Done")
-    sys.exit(0)
+print(f"Opening {sys.argv[1]}")
+with open(sys.argv[1], 'rb') as dskFile:
+    lzmaArray = analyzeRawDsk(dskFile,sys.argv[1])
+    if len(lzmaArray) > 0:
+        outFile = f"{sys.argv[1]}.cdk"
+        print(f"File converted, saving {outFile}")
+        with open(outFile,'wb') as newfile:
+            newfile.write(lzmaArray)
+        dskFile.close()
+        print("Done")
+        sys.exit(0)
 
-print("Failed")
+    print("Failed")
 
-dskFile.close()
 sys.exit(-1)

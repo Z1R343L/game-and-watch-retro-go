@@ -10,19 +10,17 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("png", type=Path)
     parser.add_argument("--invert", action="store_true")
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def main():
     args = parse_args()
     img = imageio.imread(args.png)
     if img.ndim == 3:
-        if img.shape[-1] == 4:
-            img = (img == [0, 0, 0, 255]).all(axis=-1)
-            img = ~img
-        else:
+        if img.shape[-1] != 4:
             raise NotImplementedError
+        img = (img == [0, 0, 0, 255]).all(axis=-1)
+        img = ~img
     img = img.astype(bool)
     if args.invert:
         img = ~img

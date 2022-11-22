@@ -359,26 +359,25 @@ def writestring(file, ss):
     file.write(bytes(ss, encoding="ASCII",errors = "ignore"))
 
 def Txt_Fromimg(font_name, priname, out_size:int, ckvale:int):
-    print("Process:" + font_name)
+    print(f"Process:{font_name}")
     if (priname == "__") :
         priname = ""
     py_file = "fcdata.py"
-    txt_file = "txts" + "/" + priname + str((Path(font_name)).stem + ".txt")
-    out_file = "src" + "/" + priname + str((Path(font_name)).stem + ".h")
-    bmp_file = "imgs" + "/" + priname + str((Path(font_name)).stem + ".bmp")
-    ckv = 0xff * 3 * ckvale // 100
-    h_s = out_size // 2
-    s_w = out_size * 4
-    s_h = out_size * 4
-
+    txt_file = "txts" + "/" + priname + str(f"{Path(font_name).stem}.txt")
+    out_file = "src" + "/" + priname + str(f"{Path(font_name).stem}.h")
+    bmp_file = "imgs" + "/" + priname + str(f"{Path(font_name).stem}.bmp")
     if (Path(bmp_file).exists()):
         img = Image.open(bmp_file)
         pixels = img.load()
-        f = open(py_file, "wb")
+        ckv = 0xff * 3 * ckvale // 100
+        h_s = out_size // 2
+        s_w = out_size * 4
+        s_h = out_size * 4
 
-        writestring(f, s_prior_header)
-        for y in range(16):
-            for x in range(16):
+        with open(py_file, "wb") as f:
+            writestring(f, s_prior_header)
+            for y in range(16):
+                for x in range(16):
                     ssx = 16
                     smax = 0
                     chrno = y*16+x
@@ -391,8 +390,7 @@ def Txt_Fromimg(font_name, priname, out_size:int, ckvale:int):
                                     smax = dx if (smax < dx) else smax
                         chrwd = smax - ssx + 1
                         #width
-                        if (chrwd < 0):
-                            chrwd = 0
+                        chrwd = max(chrwd, 0)
                         if (chrwd > 0):
                             chrwd = chrwd + 1
                         if (chrwd == 0):
@@ -404,7 +402,7 @@ def Txt_Fromimg(font_name, priname, out_size:int, ckvale:int):
                         writestring(f," #" + "%d"%chrno + " width " + "%d"%chrwd+"\n")
                         writestring(f,"    # Option: fixed,fixed(outheight*2),width,xoffset \n")
                         writestring(f,"    0x%02x"%chrno + ", 0x%02x"%(out_size*2)+ ", 0x%02x"%chrwd + ", 0x%02x,\n"%(ssx))
-                    
+
                         #x * s_w + out_size * 2 + h_s - 1
                         #y * s_h + out_size * 2 + h_s
 
@@ -416,11 +414,10 @@ def Txt_Fromimg(font_name, priname, out_size:int, ckvale:int):
                                 pt = pixels[x * s_w + out_size * 2 + h_s - 1 + dx, y * s_h + out_size * 2 + h_s + dy]
                                 writestring(f,"X" if ((pt[0] + pt[1] + pt[2]) >= ckv) else "_")
                             writestring(f,",\n")
-        writestring(f, "    ]")
-        f.close()
+            writestring(f, "    ]")
         import os
         py_file = "fcdata.py"
-        os.system("copy /Y fcdata.py \"" + txt_file + "\"")  
+        os.system("copy /Y fcdata.py \"" + txt_file + "\"")
         os.system("python3 fontcreate.py \"" + out_file + "\"")
         #print(d)
         #run it

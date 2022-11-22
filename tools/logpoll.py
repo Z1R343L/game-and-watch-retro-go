@@ -49,10 +49,7 @@ def logpoll(args):
                 logbuf = ocd.read_memory(
                     8, logbuf_addr + last_idx, logbuf_size - last_idx
                 )
-                if 0 in logbuf:
-                    end = logbuf.index(0) - 1
-                else:
-                    end = len(logbuf)
+                end = logbuf.index(0) - 1 if 0 in logbuf else len(logbuf)
                 logbuf_str = "".join([chr(c) for c in logbuf[:end]])
 
                 # Read new data from the beginning and append it

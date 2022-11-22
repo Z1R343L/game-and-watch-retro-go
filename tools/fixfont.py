@@ -66,7 +66,7 @@ def write_fontpixels(fn):
 def main():
     import sys
     #filepath.stem
-    write_fontpixels(sys.argv[0] + ".txt")
+    write_fontpixels(f"{sys.argv[0]}.txt")
 
 if __name__ == "__main__":
     main()
